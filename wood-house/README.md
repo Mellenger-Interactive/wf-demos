@@ -28,6 +28,6 @@ The model has approximately 1,100 separate components. Geometry is shared in the
 
 ## GitHub Pages
 
-Live explorer: https://mellenger-interactive.github.io/west-fraser-material-house/
+Live explorer: https://mellenger-interactive.github.io/wf-demos/wood-house/
 
-Pushes to `main` automatically build and publish the site through `.github/workflows/deploy.yml`. Vite uses relative asset paths so the explorer works under the repository's Pages subdirectory. The supplied image is preserved in `reference/`; source files, interaction checks, screenshots, and the exported GLB are included in this repository. Dependencies and generated website output are recreated during deployment.
+This project now lives in the `wood-house/` folder of the `wf-demos` repo (moved from `west-fraser-material-house`, history kept). Pushes to `main` build and publish it through the repo-level `.github/workflows/deploy.yml`. Vite uses relative asset paths, so the explorer works under any Pages subdirectory. The supplied image is preserved in `reference/`; source files, interaction checks, screenshots, and the exported GLB are included. Dependencies and generated website output are recreated during deployment.

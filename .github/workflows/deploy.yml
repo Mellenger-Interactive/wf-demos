@@ -22,12 +22,23 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache-dependency-path: wood-house/package-lock.json
+      - name: Build wood-house
+        working-directory: wood-house
+        run: |
+          npm ci
+          npm run build
+      - name: Assemble site
+        run: |
+          mkdir -p site
+          cp index.html site/
+          cp -r wood-house/dist site/wood-house
+          mkdir -p site/carbon-story
+          cp carbon-story/index.html carbon-story/carbon-story.json site/carbon-story/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

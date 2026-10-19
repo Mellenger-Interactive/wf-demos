@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>West Fraser carbon story</title>
+  <style>
+    :root { --fg: #1F2B1E; --muted: #5E6E5C; --accent: #2F6B3A; --bg: #FFFFFF; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    p { color: var(--muted); margin: 0 0 16px; }
+    .carbon-story { width: 100%; max-width: 600px; aspect-ratio: 1 / 1; margin: 0 auto; }
+    .controls { display: flex; justify-content: center; margin-top: 8px; }
+    button { font: 500 0.9rem system-ui, sans-serif; padding: 8px 16px; border-radius: 4px; border: 1px solid var(--accent); background: #fff; color: var(--accent); cursor: pointer; }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    footer { margin-top: 32px; font-size: 0.85rem; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>West Fraser carbon story</h1>
+    <p>A looping street scene: a truck delivers a mass timber beam and a crane lifts it onto a timber building as people walk past.</p>
+
+    <!-- The component: copy this div, the two scripts and the .carbon-story style to embed it elsewhere. -->
+    <div id="carbon-story" class="carbon-story" role="img"
+         aria-label="Animation: a truck delivers a mass timber beam, a crane lifts it onto a timber building, and people walk past on the street."></div>
+    <div class="controls"><button id="carbon-story-toggle" type="button" aria-controls="carbon-story">Pause animation</button></div>
+
+    <footer><a href="carbon-story.json">Download the Lottie JSON</a> · <a href="../">All demos</a></footer>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+  <script>
+    (function () {
+      var el = document.getElementById('carbon-story');
+      var btn = document.getElementById('carbon-story-toggle');
+      var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var anim = lottie.loadAnimation({
+        container: el, renderer: 'svg', loop: true, autoplay: !reduce,
+        path: 'carbon-story.json'
+      });
+      var playing = !reduce;
+      function label() { btn.textContent = playing ? 'Pause animation' : 'Play animation'; }
+      // Reduced motion: show a still frame until the visitor chooses to play.
+      if (reduce) anim.addEventListener('DOMLoaded', function () { anim.goToAndStop(0, true); });
+      btn.addEventListener('click', function () { playing ? anim.pause() : anim.play(); playing = !playing; label(); });
+      label();
+    })();
+  </script>
+</body>
+</html>
