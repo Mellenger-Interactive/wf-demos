@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --open /main.html",
-    "preview": "vite preview --host 0.0.0.0 --open /main.html"
+    "dev": "vite --host 0.0.0.0 --open /",
+    "preview": "vite preview --host 0.0.0.0 --open /"
   },
   "devDependencies": {
     "vite": "^7.1.0"
