@@ -31,7 +31,9 @@
     .cs-lottie-static { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .cs-lottie-static > svg { opacity: 0; transition: opacity 300ms ease; }   /* hidden until trimmed to the zone */
     .cs-lottie-static.is-ready > svg { opacity: 1; }
-    .cs-lottie { position: absolute; left: 7.4243%; top: 30.9394%; width: 48.8599%; height: 55.9701%; pointer-events: none;
+    /* clip-path: the outer 3px of the 600px canvas are pure white (soft edge); trimming them hides a hairline that
+       browsers leave where the soft edge and the animation are both cut at the canvas border */
+    .cs-lottie { clip-path: inset(0.5%); position: absolute; left: 7.4243%; top: 30.9394%; width: 48.8599%; height: 55.9701%; pointer-events: none;
                  opacity: 0; visibility: hidden; transition: opacity 600ms ease, visibility 0s linear 600ms; }
     .cs-scene[data-focus="construction"] .cs-lottie { opacity: 1; visibility: visible; transition: opacity 600ms ease 150ms; }
 
@@ -1166,12 +1168,13 @@
 
       // view = scale + translation (scene units). A scene point p is drawn at p * s + t.
       var view = { s: 1, tx: -CROP[0], ty: -CROP[1] }, current = 'overview', onChange = function () {};
+      var bounds = CROP;                   // area the view may pan over (scene coords)
 
       function clamp(v) {
         v.s = Math.min(MAX, Math.max(1, v.s));
-        // keep the cropped illustration covering the viewport
-        v.tx = Math.min(-CROP[0] * v.s, Math.max(VW - (CROP[0] + VW) * v.s, v.tx));
-        v.ty = Math.min(-CROP[1] * v.s, Math.max(VH - (CROP[1] + VH) * v.s, v.ty));
+        // keep the view within the pannable area (no panning off into empty page)
+        v.tx = Math.min(-bounds[0] * v.s, Math.max(VW - (bounds[0] + bounds[2]) * v.s, v.tx));
+        v.ty = Math.min(-bounds[1] * v.s, Math.max(VH - (bounds[1] + bounds[3]) * v.s, v.ty));
         return v;
       }
       function apply() {
@@ -1189,6 +1192,10 @@
         var b = ZONES[name].box, s = Math.min(VW / b[2], VH / b[3]) * (name === 'overview' ? 1 : 1 - PAD);
         var cx = b[0] + b[2] / 2, cy = b[1] + b[3] / 2;
         view = { s: s, tx: VW / 2 - cx * s, ty: VH / 2 - cy * s };
+        // let the view extend past the illustration if that's what it takes to centre this area
+        var vx = cx - VW / 2 / s, vy = cy - VH / 2 / s, x0 = Math.min(CROP[0], vx), y0 = Math.min(CROP[1], vy);
+        bounds = name === 'overview' ? CROP : [x0, y0,
+          Math.max(CROP[0] + CROP[2], vx + VW / s) - x0, Math.max(CROP[1] + CROP[3], vy + VH / s) - y0];
         current = name;
         apply();
         status.textContent = name === 'overview' ? 'Showing the full carbon story' : 'Zoomed in to the ' + ZONES[name].label.toLowerCase();
@@ -1197,7 +1204,7 @@
         var cx = (VW / 2 - view.tx) / view.s, cy = (VH / 2 - view.ty) / view.s;   // keep the centre fixed
         var s = Math.min(MAX, Math.max(1, view.s * f));
         view = { s: s, tx: VW / 2 - cx * s, ty: VH / 2 - cy * s };
-        if (s <= 1.001) current = 'overview';
+        if (s <= 1.001) { current = 'overview'; bounds = CROP; }
         else if (f < 1) current = null;            // zooming out shows the whole story again
         apply();
       }
