@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>West Fraser carbon story – full graphic</title>
+  <!-- start downloading the animation right away, in parallel with the page and lottie-web -->
+  <script>window.csData = fetch('carbon-story.json').then(function (r) { return r.text(); });</script>
   <style>
     :root { --fg: #1F2B1E; --muted: #5E6E5C; --accent: #2F6B3A; --bg: #FFFFFF; }
     html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
@@ -27,6 +29,8 @@
     /* static construction zone: a paused frame of the full-length animation. Only its ground is clipped to the
        zone; objects are shown whole if they stand inside the zone and hidden if they don't (see cullObjects). */
     .cs-lottie-static { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .cs-lottie-static > svg { opacity: 0; transition: opacity 300ms ease; }   /* hidden until trimmed to the zone */
+    .cs-lottie-static.is-ready > svg { opacity: 1; }
     .cs-lottie { position: absolute; left: 7.4243%; top: 30.9394%; width: 48.8599%; height: 55.9701%; pointer-events: none;
                  opacity: 0; visibility: hidden; transition: opacity 600ms ease, visibility 0s linear 600ms; }
     .cs-scene[data-focus="construction"] .cs-lottie { opacity: 1; visibility: visible; transition: opacity 600ms ease 150ms; }
@@ -76,7 +80,7 @@
 <g id="Layer 6">
 <path id="Vector" d="M892.98 427.36L613.62 589.25L869.91 737.44L1150.3 575.54L892.98 427.36Z" fill="#749471" stroke="#809283" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" data-area="sawmill"/>
 <path id="Vector_2" d="M636.68 279.17L357.33 441.06L613.62 589.25L894.01 427.35L636.68 279.17Z" fill="#E1EBDE" stroke="#809283" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" data-area="forest"/>
-<path id="Vector_3" d="M357.33 441.06L80.12 601.7L590.74 896.95L869.91 737.44L357.33 441.06Z" fill="none" stroke="#809283" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" data-area="construction"/>
+<path id="Vector_3" d="M357.33 441.06L80.12 601.7L590.74 896.95L869.91 737.44L357.33 441.06Z" fill="#E6F3EC" stroke="#809283" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" data-area="construction"/>
 <path id="Vector_4" d="M124.1 576.48L639.28 869.47L674.33 849.44L158.97 556.28L124.1 576.48Z" fill="none" stroke="#809283" stroke-width="0.25" stroke-linecap="round" stroke-linejoin="round" data-area="construction"/>
 </g>
 <g id="Sawmill" data-area="sawmill">
@@ -1250,6 +1254,25 @@
       var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       var anim = null, still = null, wantPlay = !reduce, wasOn = false;
 
+      // The construction strip is 4 identical copies that scroll end to end. Building each copy is the slow part,
+      // so only keep copies whose content is on screen at the given frames.
+      var STRIP_BOX = [-228, 134, 1098, 1001];          // strip content bounds inside one copy (+20px margin)
+      var OVERVIEW_AREA = [40, 170, 1180, 910];          // what the overview shows (scene coords)
+      var ANIM_AREA = [30, 30, 570, 570];                // the 600x600 animation inside its fully-white soft edge
+      function keepStrips(d, area, frames) {
+        var off = [0, 0];
+        d.layers.forEach(function (l) { if (l.nm === 'offset-to-frame') off = l.ks.p.k; });
+        d.layers = d.layers.filter(function (l) {
+          if (!/^strip/.test(l.nm)) return true;
+          var k = l.ks.p.k, a = k[0].s, b = k[k.length - 1].s, t0 = k[0].t, t1 = k[k.length - 1].t;
+          return frames.some(function (f) {
+            var u = Math.min(1, Math.max(0, (f - t0) / (t1 - t0)));
+            var x = off[0] + a[0] + (b[0] - a[0]) * u, y = off[1] + a[1] + (b[1] - a[1]) * u;
+            return x + STRIP_BOX[2] > area[0] && x + STRIP_BOX[0] < area[2] && y + STRIP_BOX[3] > area[1] && y + STRIP_BOX[1] < area[3];
+          });
+        });
+        return d;
+      }
       function fullLength(d) {
         d.layers = d.layers.filter(function (l) { return l.nm !== 'fade'; });
         var ind = 1 + Math.max.apply(null, d.layers.map(function (l) { return l.ind; }));
@@ -1327,13 +1350,25 @@
       }
       function showStill(frame) { if (!still) return; still.goToAndStop(frame, true); cullObjects(still); }
 
-      fetch('carbon-story.json').then(function (r) { return r.text(); }).then(function (txt) {
+      window.csData.then(function (txt) {
+        var fast = { progressiveLoad: true };
         still = lottie.loadAnimation({ container: document.getElementById('cs-lottie-static'), renderer: 'svg',
-          loop: false, autoplay: false, animationData: fullLength(JSON.parse(txt)) });
-        still.addEventListener('DOMLoaded', function () { clipGround(still); showStill(STILL_FRAME); });
-        anim = lottie.loadAnimation({ container: document.getElementById('cs-lottie'), renderer: 'svg',
-          loop: true, autoplay: false, animationData: JSON.parse(txt) });
-        anim.addEventListener('DOMLoaded', function () { anim.goToAndStop(STILL_FRAME, true); wasOn = false; syncAnim(); });
+          loop: false, autoplay: false, rendererSettings: fast,
+          animationData: keepStrips(fullLength(JSON.parse(txt)), OVERVIEW_AREA, [STILL_FRAME]) });
+        still.addEventListener('DOMLoaded', function () {
+          showStill(STILL_FRAME);
+          clipGround(still);
+          cullObjects(still);
+          document.getElementById('cs-lottie-static').classList.add('is-ready');
+          // build the zoom-in animation once the overview has faded in (building it blocks the page briefly)
+          setTimeout(function () {
+            var frames = []; for (var f = 0; f < 360; f++) frames.push(f);
+            anim = lottie.loadAnimation({ container: document.getElementById('cs-lottie'), renderer: 'svg',
+              loop: true, autoplay: false, rendererSettings: fast,
+              animationData: keepStrips(JSON.parse(txt), ANIM_AREA, frames) });
+            anim.addEventListener('DOMLoaded', function () { anim.goToAndStop(STILL_FRAME, true); wasOn = false; syncAnim(); });
+          }, 400);
+        });
       });
       syncAnim();
     })();
