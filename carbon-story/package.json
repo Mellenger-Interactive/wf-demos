@@ -1,0 +1,13 @@
+{
+  "name": "west-fraser-carbon-story",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --open /main.html",
+    "preview": "vite preview --host 0.0.0.0 --open /main.html"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  }
+}

@@ -6,6 +6,14 @@ Looping Lottie animation for West Fraser's carbon story: a truck delivers a mass
 
 - `carbon-story.json` – the Lottie animation (600 × 600, 30 fps, 360-frame loop).
 - `index.html` – demo page and embeddable component (pause button, reduced-motion still frame, screen-reader label).
+- `main.html` – the full interactive carbon story: the whole Figma graphic with click-to-zoom areas (forest, sawmill, construction), Overview and +/− buttons, drag to pan, Esc to go back. The overview is static; zooming into the construction site cross-fades to the soft-edged Lottie and plays it. `STILL_FRAME` at the top of the script picks which frame of the strip the static overview shows.
+
+## Running locally
+
+```
+npm install   # first time only
+npm run dev   # opens main.html and reloads on save
+```
 
 ## Embedding
 

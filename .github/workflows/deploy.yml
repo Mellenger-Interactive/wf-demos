@@ -34,7 +34,7 @@ jobs:
           cp index.html site/
           cp -r wood-house/dist site/wood-house
           mkdir -p site/carbon-story
-          cp carbon-story/index.html carbon-story/carbon-story.json site/carbon-story/
+          cp carbon-story/index.html carbon-story/main.html carbon-story/carbon-story.json site/carbon-story/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
