@@ -22,9 +22,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: wood-house/package-lock.json
+          cache-dependency-path: |
+            wood-house/package-lock.json
+            framed-house/package-lock.json
       - name: Build wood-house
         working-directory: wood-house
+        run: |
+          npm ci
+          npm run build
+      - name: Build framed-house
+        working-directory: framed-house
         run: |
           npm ci
           npm run build
@@ -33,6 +40,7 @@ jobs:
           mkdir -p site
           cp index.html site/
           cp -r wood-house/dist site/wood-house
+          cp -r framed-house/dist site/framed-house
           mkdir -p site/carbon-story
           cp carbon-story/index.html carbon-story/carbon-story.json site/carbon-story/
       - uses: actions/configure-pages@v5
