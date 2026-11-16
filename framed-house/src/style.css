@@ -433,3 +433,16 @@ input[type='range'] {
 #loading[hidden] {
   display: none;
 }
+
+/* Build animation bar hidden (src/timeline.js SHOW_BUILD = false): the view takes its space. */
+.no-build footer {
+  display: none;
+}
+.no-build main {
+  height: calc(100vh - 40px);
+}
+@media (max-width: 700px) {
+  .no-build main {
+    height: auto;
+  }
+}

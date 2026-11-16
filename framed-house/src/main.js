@@ -2,8 +2,9 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { products } from './products.js';
-import { BUILD_SECONDS, PART_RAMP, STAGES, stageLabel } from './timeline.js';
+import { BUILD_SECONDS, PART_RAMP, SHOW_BUILD, STAGES, stageLabel } from './timeline.js';
 
 // The house is public/framed-house.glb, exported from Blender (wf_framed_house.blend) by
 // export_web_glb.py: ~330 merged parts, each one product, tagged (glTF extras → userData) with
@@ -15,12 +16,16 @@ const BASE = ['foundation', 'site'];
 
 const $ = (s) => document.querySelector(s),
   canvas = $('#canvas');
+// Build animation bar hidden for now (timeline.js SHOW_BUILD); the house shows complete.
+if (!SHOW_BUILD) $('#app').classList.add('no-build');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-// Lighting is the wood-house page's, value for value (tone mapping, sky, sun, fill).
+// Lighting: an overcast daylight HDRI (public/sky.hdr, Poly Haven 'Kloofendal Overcast Pure
+// Sky', CC0) lights the house evenly from the whole sky, so walls facing different ways keep the
+// same colour; a softer sun on top casts the shadows. The HDRI only lights; it isn't shown.
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.4;
 const scene = new THREE.Scene();
@@ -31,18 +36,53 @@ const VIEW_DROP = { desktop: 0.08, phone: 0.03 };
 const TARGET = new THREE.Vector3(0, 3.4, 0);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-controls.minDistance = 14;
+// Scroll zooms towards the cursor, all the way into the house. Close in, scrolling further walks
+// the camera (and its orbit point) forward, so you can pass through a window or wall into a room
+// and keep going; scrolling back out returns to the normal orbit.
+controls.zoomToCursor = true;
+controls.minDistance = 0.6;
 controls.maxDistance = 48;
-controls.maxPolarAngle = Math.PI / 2 - 0.04;
+const NEAR = 2.5; // closer than this, scrolling in walks forward and you can look up
+canvas.addEventListener(
+  'wheel',
+  (e) => {
+    if (e.deltaY >= 0 || camera.position.distanceTo(controls.target) > NEAR) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const step = Math.min(0.6, Math.abs(e.deltaY) * 0.004);
+    const dir = new THREE.Vector3();
+    raycaster.setFromCamera(pointerFrom(e), camera);
+    dir.copy(raycaster.ray.direction).normalize().multiplyScalar(step);
+    camera.position.add(dir);
+    controls.target.add(dir);
+  },
+  { capture: true, passive: false },
+);
+function pointerFrom(e) {
+  const r = canvas.getBoundingClientRect();
+  return new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+}
+function limitView() {
+  // Above the ground when orbiting the house; free to look up once you're inside.
+  controls.maxPolarAngle =
+    camera.position.distanceTo(controls.target) < NEAR ? Math.PI - 0.15 : Math.PI / 2 - 0.04;
+}
+limitView();
 function reset() {
   camera.position.set(12.6, 14.3, 23.7); // front-right, the garage's open bay facing you
   controls.target.copy(TARGET);
   controls.update();
 }
 reset();
-const hemi = new THREE.HemisphereLight(0xffffff, 0x7f8971, 2.8);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff2d8, 4);
+const SKY_URL = `${import.meta.env.BASE_URL}sky.hdr`;
+scene.environmentIntensity = 1;
+new HDRLoader().load(SKY_URL, (tex) => {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromEquirectangular(tex).texture;
+  tex.dispose();
+  pmrem.dispose();
+});
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.7);
 sun.position.set(-8, 18, 12);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -54,9 +94,6 @@ sun.shadow.camera.far = 60;
 sun.shadow.normalBias = 0.035;
 sun.shadow.bias = -0.0001;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0xd4e4ff, 1.2);
-fill.position.set(10, 8, -12);
-scene.add(fill);
 const ground = new THREE.Mesh(
   new THREE.PlaneGeometry(200, 200),
   new THREE.ShadowMaterial({ color: 0x536044, opacity: 0.17 }),
@@ -112,7 +149,8 @@ let progress = 1,
   playing = false,
   exploded = false,
   explodeValue = 0,
-  selected = null; // the most recent pick, shown in the detail panel
+  selected = null, // the most recent pick, shown in the detail panel
+  upTo = null; // after a stage button: show only parts of build phases up to this one (wf_phase)
 // Products shown in isolation. Cards (and parts in the view) toggle in and out; empty shows all.
 const selection = new Set();
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -141,6 +179,7 @@ function select(id) {
   if (p) {
     progress = 1;
     playing = false;
+    upTo = null;
     syncUI();
   }
 }
@@ -163,26 +202,32 @@ $('#play').onclick = () => {
     exploded = false;
     $('#explode').setAttribute('aria-pressed', 'false');
   }
+  upTo = null;
   playing = !playing;
   syncUI();
 };
 $('#progress').oninput = (e) => {
   playing = false;
+  upTo = null;
   progress = Number(e.target.value) / 100;
   syncUI();
 };
 $('.timeline-labels').innerHTML = STAGES.map(
-  (s) => `<button data-progress="${s.stop}">${s.button}</button>`,
+  (s) => `<button data-progress="${s.stop}" data-phase="${s.phase}">${s.button}</button>`,
 ).join('');
+// Phases overlap while the build plays, so a stage button also hides the next phase's parts that
+// are already on their way down: each stop shows a clean house.
 document.querySelectorAll('[data-progress]').forEach(
   (b) =>
     (b.onclick = () => {
       progress = Number(b.dataset.progress) / 100;
       playing = false;
+      upTo = Number(b.dataset.phase);
       syncUI();
     }),
 );
 $('#explode').onclick = () => {
+  upTo = null;
   exploded = !exploded;
   $('#explode').setAttribute('aria-pressed', exploded);
   progress = 1;
@@ -190,6 +235,7 @@ $('#explode').onclick = () => {
   syncUI();
 };
 $('#reset').onclick = () => {
+  upTo = null;
   reset();
   exploded = false;
   $('#explode').setAttribute('aria-pressed', 'false');
@@ -203,7 +249,8 @@ const raycaster = new THREE.Raycaster(),
   pointer = new THREE.Vector2();
 let down;
 canvas.addEventListener('pointerdown', (e) => {
-  down = [e.clientX, e.clientY];
+  // Only a left click (or a touch / pen tap) selects; right and middle buttons just move the view.
+  down = e.button === 0 ? [e.clientX, e.clientY] : null;
 });
 // The part (top-level node) a mesh belongs to.
 const partOf = (o) => {
@@ -276,21 +323,23 @@ new GLTFLoader().load(
     for (const part of parts) {
       const product = part.userData.wf_product;
       part.userData.basePosition = part.position.clone();
-      part.userData.baseScale = part.scale.clone();
       part.userData.explode = new THREE.Vector3().fromArray(part.userData.wf_explode ?? [0, 0, 0]);
+      part.userData.mats = [];
       part.traverse((m) => {
         if (!m.isMesh) return;
         m.castShadow = product !== 'site';
         m.receiveShadow = true;
         m.material = [m.material].flat().map((src) => {
-          const key = `${product}|${src.uuid}`;
+          // one material set per part, so each part can fade in on its own
+          const key = `${part.uuid}|${src.uuid}`;
           if (!cache.has(key)) {
             const mat = src.clone();
             if (src.name === 'WF OSB') mat.map = osbMap;
             if (mat.map) mat.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            if (mat.metalness > 0.2) mat.metalness = 0.2; // no environment map to reflect
+            if (mat.metalness > 0.2) mat.metalness = 0.2; // keep the nail plates matte-ish under the sky light
             cache.set(key, mat);
             mats.push({ mat, product, color: mat.color.clone() });
+            part.userData.mats.push(mat);
           }
           return cache.get(key);
         });
@@ -309,6 +358,8 @@ new GLTFLoader().load(
 );
 
 const DIM = new THREE.Color('#e6e9df');
+const DROP = 3; // metres a part falls (export_web_glb.py DROP)
+const FADE = 0.3; // share of its drop a part takes to fade in
 function updateParts(dt) {
   explodeValue = THREE.MathUtils.damp(explodeValue, exploded ? 1 : 0, reduced ? 100 : 5, dt);
   for (const { mat, product, color } of mats) {
@@ -323,13 +374,20 @@ function updateParts(dt) {
       base = BASE.includes(product);
     const f = base ? 1 : THREE.MathUtils.clamp((progress - (d.wf_stage ?? 0)) / PART_RAMP, 0, 1),
       smooth = 1 - Math.pow(1 - f, 3);
-    part.visible = f > 0;
+    part.visible = f > 0 && (upTo === null || base || (d.wf_phase ?? 0) <= upTo);
     // A selection shows only the selected products (on the foundation).
     if (selection.size && !base && !selection.has(product)) part.visible = false;
+    // Each part falls straight down into place and fades in; it doesn't grow, so parts that
+    // start together move as one. The export orders the starts (wf_stage) so a part never
+    // falls through one that is already there.
     part.position.copy(d.basePosition);
-    part.position.y += (1 - smooth) * 3;
+    part.position.y += (1 - smooth) * DROP;
     part.position.addScaledVector(d.explode, explodeValue);
-    part.scale.copy(d.baseScale).multiplyScalar(Math.max(0.001, smooth));
+    const alpha = Math.min(1, f / FADE);
+    for (const mat of d.mats) {
+      mat.transparent = alpha < 1;
+      mat.opacity = alpha;
+    }
   }
 }
 let last = performance.now();
@@ -342,6 +400,7 @@ function tick(now) {
     syncUI();
   }
   updateParts(dt);
+  limitView();
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(tick);

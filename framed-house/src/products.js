@@ -15,7 +15,7 @@ export const products = [
   },
   {
     id: 'webstock',
-    name: 'Webstock for I-joists',
+    name: 'I-joists',
     type: 'OSB',
     color: '#a9854f',
     url: 'https://www.westfraser.com/products/osb',
@@ -23,7 +23,7 @@ export const products = [
   },
   {
     id: 'joists',
-    name: 'Lumber for floor joists',
+    name: 'Floor joists',
     type: 'LUMBER',
     color: '#c99f68',
     url: LUMBER,
@@ -63,7 +63,7 @@ export const products = [
   },
   {
     id: 'owt',
-    name: 'Lumber for open web trusses',
+    name: 'Open web trusses',
     type: 'LUMBER',
     color: '#d8b47c',
     url: LUMBER,
@@ -71,7 +71,7 @@ export const products = [
   },
   {
     id: 'trusses',
-    name: 'Lumber for roof trusses & rafters',
+    name: 'Roof trusses & rafters',
     type: 'LUMBER',
     color: '#e7c992',
     url: LUMBER,
